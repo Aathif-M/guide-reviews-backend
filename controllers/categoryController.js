@@ -3,7 +3,9 @@ const prisma = require('../utils/prisma');
 // List all categories
 const getCategories = async (req, res) => {
     try {
-        const categories = await prisma.category.findMany();
+        const categories = await prisma.category.findMany({
+            include: { questions: true }
+        });
         res.json(categories);
     } catch (err) {
         res.status(500).json({ error: 'Server error parsing categories' });

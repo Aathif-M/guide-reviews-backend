@@ -4,6 +4,7 @@ const {
 } = require('../controllers/appController');
 const authMiddleware = require('../middlewares/authMiddleware');
 const roleMiddleware = require('../middlewares/roleMiddleware');
+const uploadMiddleware = require('../middlewares/uploadMiddleware');
 
 const router = express.Router();
 
@@ -22,7 +23,7 @@ const optionalAuth = (req, res, next) => {
 router.get('/', optionalAuth, getApps);
 router.get('/:id', optionalAuth, getAppById);
 
-router.post('/', authMiddleware, submitApp);
+router.post('/', authMiddleware, uploadMiddleware.single('logo'), submitApp);
 
 // Admin-only application management
 router.put('/:id', authMiddleware, roleMiddleware(['ADMIN']), updateApp);

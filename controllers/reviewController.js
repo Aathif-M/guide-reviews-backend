@@ -1,5 +1,21 @@
 const prisma = require('../utils/prisma');
 
+// List ALL reviews (Admin only)
+const getAllReviews = async (req, res) => {
+    try {
+        const reviews = await prisma.review.findMany({
+            include: {
+                app: { select: { title: true } },
+                user: { select: { firstName: true, lastName: true } }
+            },
+            orderBy: { createdAt: 'desc' }
+        });
+        res.json(reviews);
+    } catch (err) {
+        res.status(500).json({ error: 'Server error fetching all reviews' });
+    }
+};
+
 // List reviews for an app (Approved only)
 const getAppReviews = async (req, res) => {
     try {
@@ -29,11 +45,25 @@ const getAppReviews = async (req, res) => {
 const submitReview = async (req, res) => {
     try {
         const { id } = req.params; // appId
-        const { rating, content, answers } = req.body;
+        const { rating, content, answers = [] } = req.body;
         // answers expected format: [{ questionId: '...', answerRating: 4 }, ...]
 
         if (req.user.role === 'ADMIN') {
             return res.status(403).json({ error: 'Admins cannot submit reviews' });
+        }
+
+        // Check if user already reviewed this app
+        const existingReview = await prisma.review.findUnique({
+            where: {
+                appId_userId: {
+                    appId: id,
+                    userId: req.user.id
+                }
+            }
+        });
+
+        if (existingReview) {
+            return res.status(400).json({ error: 'You have already submitted a review for this app. You can edit your existing review instead.' });
         }
 
         const newReview = await prisma.review.create({
@@ -78,6 +108,60 @@ const approveReview = async (req, res) => {
     }
 };
 
+// Edit a review (Must be the author)
+const updateReview = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { rating, content, answers = [] } = req.body; // Add answers support to edit
+
+        const review = await prisma.review.findUnique({ where: { id } });
+        if (!review) return res.status(404).json({ error: 'Review not found' });
+
+        if (review.userId !== req.user.id && req.user.role !== 'ADMIN') {
+            return res.status(403).json({ error: 'Not authorized to edit this review' });
+        }
+
+        const updatedReview = await prisma.review.update({
+            where: { id },
+            data: {
+                rating,
+                content,
+                approvalStatus: 'PENDING', // Reset status on edit
+                questionAnswers: {
+                    deleteMany: {}, // Delete old answers
+                    create: answers.map(ans => ({
+                        questionId: ans.questionId,
+                        answerRating: ans.answerRating
+                    }))
+                }
+            }
+        });
+
+        res.json(updatedReview);
+    } catch (err) {
+        res.status(500).json({ error: 'Server error updating review' });
+    }
+};
+
+// Delete a review (Author or Admin)
+const deleteReview = async (req, res) => {
+    try {
+        const { id } = req.params;
+
+        const review = await prisma.review.findUnique({ where: { id } });
+        if (!review) return res.status(404).json({ error: 'Review not found' });
+
+        if (review.userId !== req.user.id && req.user.role !== 'ADMIN') {
+            return res.status(403).json({ error: 'Not authorized to delete this review' });
+        }
+
+        await prisma.review.delete({ where: { id } });
+        res.json({ message: 'Review deleted successfully' });
+    } catch (err) {
+        res.status(500).json({ error: 'Server error deleting review' });
+    }
+};
+
 module.exports = {
-    getAppReviews, submitReview, approveReview
+    getAppReviews, getAllReviews, submitReview, approveReview, updateReview, deleteReview
 };

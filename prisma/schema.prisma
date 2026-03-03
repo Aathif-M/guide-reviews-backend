@@ -62,9 +62,10 @@ model App {
   id                String         @id @default(uuid())
   title             String
   description       String
+  logoUrl           String?
   playstoreLink     String?
   appstoreLink      String?
-  youtubeTutorialUrl String?
+  tutorials         AppTutorial[]
   categoryId        String
   submitterId       String
   approverId        String?
@@ -77,6 +78,16 @@ model App {
   approver          User?          @relation("ApprovedApps", fields: [approverId], references: [id])
   reviews           Review[]
   forumPosts        ForumPost[]
+}
+
+model AppTutorial {
+  id        String   @id @default(uuid())
+  appId     String
+  title     String
+  videoUrl  String
+  createdAt DateTime @default(now())
+
+  app       App      @relation(fields: [appId], references: [id], onDelete: Cascade)
 }
 
 model Review {
@@ -92,6 +103,8 @@ model Review {
   app             App            @relation(fields: [appId], references: [id])
   user            User           @relation(fields: [userId], references: [id])
   questionAnswers ReviewQuestionAnswer[]
+
+  @@unique([appId, userId]) // Limits one review per app per user
 }
 
 model ReviewQuestionAnswer {

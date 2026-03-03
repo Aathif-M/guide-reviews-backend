@@ -1,5 +1,5 @@
 const express = require('express');
-const { getAppReviews, submitReview, approveReview } = require('../controllers/reviewController');
+const { getAppReviews, getAllReviews, submitReview, approveReview, updateReview, deleteReview } = require('../controllers/reviewController');
 const authMiddleware = require('../middlewares/authMiddleware');
 const roleMiddleware = require('../middlewares/roleMiddleware');
 
@@ -10,10 +10,14 @@ const router = express.Router();
 // we mount this separately but use full path for clarity when attaching to index.
 
 // We will export a router and also attach full routes in index or keep it split.
-// Actually, it's easier to mount this directly at /api/v1
+// Admin Routes
+router.get('/reviews', authMiddleware, roleMiddleware(['ADMIN']), getAllReviews);
 
 router.get('/apps/:id/reviews', getAppReviews);
 router.post('/apps/:id/reviews', authMiddleware, submitReview);
+
+router.put('/reviews/:id', authMiddleware, updateReview);
+router.delete('/reviews/:id', authMiddleware, deleteReview);
 
 router.patch('/reviews/:id/approve', authMiddleware, roleMiddleware(['ADMIN']), approveReview);
 
