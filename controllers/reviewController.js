@@ -6,7 +6,12 @@ const getAllReviews = async (req, res) => {
         const reviews = await prisma.review.findMany({
             include: {
                 app: { select: { title: true } },
-                user: { select: { firstName: true, lastName: true } }
+                user: { select: { firstName: true, lastName: true } },
+                questionAnswers: {
+                    include: {
+                        question: { select: { question: true } }
+                    }
+                }
             },
             orderBy: { createdAt: 'desc' }
         });

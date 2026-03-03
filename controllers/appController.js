@@ -1,6 +1,11 @@
 const prisma = require('../utils/prisma');
 
-// List apps (returns APPROVED apps for general users, ALL for admin)
+/**
+ * Fetch all applications.
+ * Normal users receive only 'APPROVED' apps. Admins receive all apps regardless of status.
+ * Filtering by category ID and searching by title are supported via query strings.
+ * Ratings are aggregated by combining traditional stars and heuristic questionnaire results.
+ */
 const getApps = async (req, res) => {
     try {
         const { category, search } = req.query;
@@ -23,6 +28,9 @@ const getApps = async (req, res) => {
             where: whereClause,
             include: {
                 category: true,
+                tutorials: {
+                    where: (!req.user || req.user.role !== 'ADMIN') ? { approvalStatus: 'APPROVED' } : undefined
+                },
                 reviews: {
                     where: { approvalStatus: 'APPROVED' },
                     include: { questionAnswers: true } // Need answers for calculation
@@ -67,7 +75,7 @@ const getApps = async (req, res) => {
 
             return {
                 ...app,
-                computedRating: Number(aggregatedRating.toFixed(1))
+                computedRating: Number(aggregatedRating.toFixed(2))
             };
         });
 
@@ -77,7 +85,11 @@ const getApps = async (req, res) => {
     }
 };
 
-// Get app details
+/**
+ * Fetch detailed view for a single application by its ID.
+ * Returns attached tutorials, related category heuristic questions, and a filtered list of reviews.
+ * Unauthorized users are blocked from viewing unapproved applications.
+ */
 const getAppById = async (req, res) => {
     try {
         const { id } = req.params;
@@ -95,7 +107,11 @@ const getAppById = async (req, res) => {
                             : { approvalStatus: 'APPROVED' },
                     include: {
                         user: { select: { id: true, firstName: true, lastName: true } },
-                        questionAnswers: true // important to fetch answers for calculating total score
+                        questionAnswers: {
+                            include: {
+                                question: { select: { question: true } }
+                            }
+                        }
                     }
                 }
             }
@@ -106,6 +122,16 @@ const getAppById = async (req, res) => {
         // Non-admins shouldn't see unapproved apps
         if (app.approvalStatus !== 'APPROVED' && (!req.user || req.user.role !== 'ADMIN')) {
             return res.status(403).json({ error: 'Access denied: App not approved yet' });
+        }
+
+        // In memory tutorial filtering
+        if (app.tutorials) {
+            app.tutorials = app.tutorials.filter(t => {
+                if (t.approvalStatus === 'APPROVED') return true;
+                if (req.user && req.user.role === 'ADMIN') return true;
+                if (req.user && t.submitterId === req.user.id) return true;
+                return false;
+            });
         }
 
         // Calculate comprehensive aggregated rating strictly for APPROVED reviews
@@ -147,7 +173,7 @@ const getAppById = async (req, res) => {
 
         const appResponse = {
             ...app,
-            computedRating: Number(aggregatedRating.toFixed(1))
+            computedRating: Number(aggregatedRating.toFixed(2))
         };
 
         res.json(appResponse);
@@ -156,7 +182,12 @@ const getAppById = async (req, res) => {
     }
 };
 
-// Submit a new app (Auth required)
+/**
+ * Authenticated users or admins can submit a new application for review.
+ * Normal user submissions enter a 'PENDING' state requiring admin approval.
+ * Admin submissions are automatically 'APPROVED'.
+ * Supported fields include title, logo (via file upload), descriptions, app store links, and tutorials.
+ */
 const submitApp = async (req, res) => {
     try {
         const { title, description, playstoreLink, appstoreLink, categoryId } = req.body;
@@ -185,10 +216,13 @@ const submitApp = async (req, res) => {
                 appstoreLink,
                 categoryId,
                 submitterId: req.user.id,
+                approvalStatus: req.user.role === 'ADMIN' ? 'APPROVED' : 'PENDING',
+                approverId: req.user.role === 'ADMIN' ? req.user.id : null,
                 tutorials: {
                     create: tutorials.map(t => ({
                         title: t.title,
-                        videoUrl: t.url
+                        videoUrl: t.url,
+                        approvalStatus: req.user.role === 'ADMIN' ? 'APPROVED' : 'PENDING'
                     }))
                 }
             }
@@ -207,6 +241,45 @@ const updateApp = async (req, res) => {
         const { title, description, logoUrl, playstoreLink, appstoreLink, categoryId } = req.body;
         let tutorials = req.body.tutorials || [];
 
+        const keepIds = tutorials.filter(t => t.id).map(t => t.id);
+
+        if (keepIds.length > 0) {
+            await prisma.appTutorial.deleteMany({
+                where: {
+                    appId: id,
+                    id: { notIn: keepIds }
+                }
+            });
+        } else {
+            // If no keepIds, that means all existing tutorials were removed by the admin
+            await prisma.appTutorial.deleteMany({
+                where: { appId: id }
+            });
+        }
+
+        for (const t of tutorials) {
+            if (t.id) {
+                await prisma.appTutorial.update({
+                    where: { id: t.id },
+                    data: {
+                        title: t.title,
+                        videoUrl: t.url,
+                        approvalStatus: 'APPROVED'
+                    }
+                });
+            } else {
+                await prisma.appTutorial.create({
+                    data: {
+                        appId: id,
+                        title: t.title,
+                        videoUrl: t.url,
+                        submitterId: req.user.id,
+                        approvalStatus: 'APPROVED'
+                    }
+                });
+            }
+        }
+
         const app = await prisma.app.update({
             where: { id },
             data: {
@@ -215,20 +288,62 @@ const updateApp = async (req, res) => {
                 logoUrl,
                 playstoreLink,
                 appstoreLink,
-                categoryId,
-                tutorials: {
-                    deleteMany: {},
-                    create: tutorials.map(t => ({
-                        title: t.title,
-                        videoUrl: t.url
-                    }))
-                }
+                categoryId
+            },
+            include: {
+                tutorials: true
             }
         });
 
         res.json(app);
     } catch (err) {
+        console.error("Update App Error:", err);
         res.status(500).json({ error: 'Server error updating app' });
+    }
+};
+
+const submitTutorial = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { title, url } = req.body;
+
+        const tutorial = await prisma.appTutorial.create({
+            data: {
+                title,
+                videoUrl: url,
+                appId: id,
+                submitterId: req.user.id,
+                approvalStatus: req.user.role === 'ADMIN' ? 'APPROVED' : 'PENDING'
+            }
+        });
+        res.status(201).json(tutorial);
+    } catch (err) {
+        res.status(500).json({ error: 'Server error submitting tutorial' });
+    }
+};
+
+const approveTutorial = async (req, res) => {
+    try {
+        const { tutorialId } = req.params;
+        const { status } = req.body; // 'APPROVED' or 'REJECTED'
+
+        const tutorial = await prisma.appTutorial.update({
+            where: { id: tutorialId },
+            data: { approvalStatus: status }
+        });
+        res.json(tutorial);
+    } catch (err) {
+        res.status(500).json({ error: 'Server error updating tutorial status' });
+    }
+};
+
+const deleteTutorial = async (req, res) => {
+    try {
+        const { tutorialId } = req.params;
+        await prisma.appTutorial.delete({ where: { id: tutorialId } });
+        res.json({ message: 'Tutorial deleted' });
+    } catch (err) {
+        res.status(500).json({ error: 'Server error deleting tutorial' });
     }
 };
 
@@ -268,5 +383,5 @@ const approveApp = async (req, res) => {
 };
 
 module.exports = {
-    getApps, getAppById, submitApp, updateApp, deleteApp, approveApp
+    getApps, getAppById, submitApp, updateApp, deleteApp, approveApp, submitTutorial, approveTutorial, deleteTutorial
 };

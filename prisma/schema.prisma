@@ -1,10 +1,142 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
-generator client {
-  provider = "prisma-client-js"
+model User {
+  id                 String        @id @default(uuid())
+  email              String        @unique
+  passwordHash       String
+  role               Role          @default(USER)
+  firstName          String
+  lastName           String
+  isSuspended        Boolean       @default(false)
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @updatedAt
+  approvedApps       App[]         @relation("ApprovedApps")
+  submittedApps      App[]         @relation("SubmittedApps")
+  submittedTutorials AppTutorial[]
+  feedback           Feedback[]
+  forumAnswers       ForumAnswer[]
+  forumPosts         ForumPost[]
+  reviews            Review[]
+}
+
+model Category {
+  id          String             @id @default(uuid())
+  name        String             @unique
+  description String?
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+  apps        App[]
+  questions   CategoryQuestion[]
+}
+
+model CategoryQuestion {
+  id         String                 @id @default(uuid())
+  categoryId String
+  question   String
+  createdAt  DateTime               @default(now())
+  updatedAt  DateTime               @updatedAt
+  category   Category               @relation(fields: [categoryId], references: [id])
+  answers    ReviewQuestionAnswer[]
+}
+
+model App {
+  id             String         @id @default(uuid())
+  title          String
+  description    String
+  playstoreLink  String?
+  appstoreLink   String?
+  categoryId     String
+  submitterId    String
+  approverId     String?
+  approvalStatus ApprovalStatus @default(PENDING)
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+  logoUrl        String?
+  approver       User?          @relation("ApprovedApps", fields: [approverId], references: [id])
+  category       Category       @relation(fields: [categoryId], references: [id])
+  submitter      User           @relation("SubmittedApps", fields: [submitterId], references: [id])
+  tutorials      AppTutorial[]
+  forumPosts     ForumPost[]
+  reviews        Review[]
+}
+
+model AppTutorial {
+  id             String         @id @default(uuid())
+  appId          String
+  title          String
+  videoUrl       String
+  createdAt      DateTime       @default(now())
+  approvalStatus ApprovalStatus @default(PENDING)
+  submitterId    String?
+  app            App            @relation(fields: [appId], references: [id], onDelete: Cascade)
+  submitter      User?          @relation(fields: [submitterId], references: [id])
+}
+
+model Review {
+  id              String                 @id @default(uuid())
+  appId           String
+  userId          String
+  rating          Int
+  content         String
+  approvalStatus  ApprovalStatus         @default(PENDING)
+  createdAt       DateTime               @default(now())
+  updatedAt       DateTime               @updatedAt
+  app             App                    @relation(fields: [appId], references: [id])
+  user            User                   @relation(fields: [userId], references: [id])
+  questionAnswers ReviewQuestionAnswer[]
+
+  @@unique([appId, userId])
+}
+
+model ReviewQuestionAnswer {
+  id           String           @id @default(uuid())
+  reviewId     String
+  questionId   String
+  answerRating Int
+  createdAt    DateTime         @default(now())
+  question     CategoryQuestion @relation(fields: [questionId], references: [id])
+  review       Review           @relation(fields: [reviewId], references: [id], onDelete: Cascade)
+}
+
+model Feedback {
+  id             String         @id @default(uuid())
+  userId         String
+  content        String
+  approvalStatus ApprovalStatus @default(PENDING)
+  createdAt      DateTime       @default(now())
+  user           User           @relation(fields: [userId], references: [id])
+}
+
+model ForumPost {
+  id        String        @id @default(uuid())
+  appId     String
+  userId    String
+  title     String
+  content   String
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+  answers   ForumAnswer[]
+  app       App           @relation(fields: [appId], references: [id])
+  user      User          @relation(fields: [userId], references: [id])
+}
+
+model ForumAnswer {
+  id         String    @id @default(uuid())
+  postId     String
+  userId     String
+  content    String
+  isAccepted Boolean   @default(false)
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  post       ForumPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user       User      @relation(fields: [userId], references: [id])
 }
 
 enum Role {
@@ -16,141 +148,4 @@ enum ApprovalStatus {
   PENDING
   APPROVED
   REJECTED
-}
-
-model User {
-  id             String    @id @default(uuid())
-  email          String    @unique
-  passwordHash   String
-  role           Role      @default(USER)
-  firstName      String
-  lastName       String
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
-
-  submittedApps  App[]     @relation("SubmittedApps")
-  approvedApps   App[]     @relation("ApprovedApps")
-  reviews        Review[]
-  feedback       Feedback[]
-  forumPosts     ForumPost[]
-  forumAnswers   ForumAnswer[]
-}
-
-model Category {
-  id          String    @id @default(uuid())
-  name        String    @unique
-  description String?
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-
-  apps        App[]
-  questions   CategoryQuestion[]
-}
-
-model CategoryQuestion {
-  id          String    @id @default(uuid())
-  categoryId  String
-  question    String
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-
-  category    Category  @relation(fields: [categoryId], references: [id])
-  answers     ReviewQuestionAnswer[]
-}
-
-model App {
-  id                String         @id @default(uuid())
-  title             String
-  description       String
-  logoUrl           String?
-  playstoreLink     String?
-  appstoreLink      String?
-  tutorials         AppTutorial[]
-  categoryId        String
-  submitterId       String
-  approverId        String?
-  approvalStatus    ApprovalStatus @default(PENDING)
-  createdAt         DateTime       @default(now())
-  updatedAt         DateTime       @updatedAt
-
-  category          Category       @relation(fields: [categoryId], references: [id])
-  submitter         User           @relation("SubmittedApps", fields: [submitterId], references: [id])
-  approver          User?          @relation("ApprovedApps", fields: [approverId], references: [id])
-  reviews           Review[]
-  forumPosts        ForumPost[]
-}
-
-model AppTutorial {
-  id        String   @id @default(uuid())
-  appId     String
-  title     String
-  videoUrl  String
-  createdAt DateTime @default(now())
-
-  app       App      @relation(fields: [appId], references: [id], onDelete: Cascade)
-}
-
-model Review {
-  id              String         @id @default(uuid())
-  appId           String
-  userId          String
-  rating          Int            // Overall rating e.g., 1-5
-  content         String
-  approvalStatus  ApprovalStatus @default(PENDING)
-  createdAt       DateTime       @default(now())
-  updatedAt       DateTime       @updatedAt
-
-  app             App            @relation(fields: [appId], references: [id])
-  user            User           @relation(fields: [userId], references: [id])
-  questionAnswers ReviewQuestionAnswer[]
-
-  @@unique([appId, userId]) // Limits one review per app per user
-}
-
-model ReviewQuestionAnswer {
-  id              String           @id @default(uuid())
-  reviewId        String
-  questionId      String
-  answerRating    Int              
-  createdAt       DateTime         @default(now())
-
-  review          Review           @relation(fields: [reviewId], references: [id], onDelete: Cascade)
-  question        CategoryQuestion @relation(fields: [questionId], references: [id])
-}
-
-model Feedback {
-  id              String         @id @default(uuid())
-  userId          String
-  content         String
-  approvalStatus  ApprovalStatus @default(PENDING)
-  createdAt       DateTime       @default(now())
-
-  user            User           @relation(fields: [userId], references: [id])
-}
-
-model ForumPost {
-  id              String         @id @default(uuid())
-  appId           String
-  userId          String
-  title           String
-  content         String
-  createdAt       DateTime       @default(now())
-  updatedAt       DateTime       @updatedAt
-
-  app             App            @relation(fields: [appId], references: [id])
-  user            User           @relation(fields: [userId], references: [id])
-  answers         ForumAnswer[]
-}
-
-model ForumAnswer {
-  id              String         @id @default(uuid())
-  postId          String
-  userId          String
-  content         String
-  isAccepted      Boolean        @default(false)
-  createdAt       DateTime       @default(now())
-  updatedAt       DateTime       @updatedAt
-
-  post            ForumPost      @relation(fields: [postId], references: [id], onDelete: Cascade)
-  user            User           @relation(fields: [userId], references: [id])
 }
