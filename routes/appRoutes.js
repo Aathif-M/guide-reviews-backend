@@ -28,7 +28,7 @@ router.post('/', authMiddleware, uploadMiddleware.single('logo'), submitApp);
 router.post('/:id/tutorials', authMiddleware, submitTutorial);
 
 // Admin-only application management
-router.put('/:id', authMiddleware, roleMiddleware(['ADMIN']), updateApp);
+router.put('/:id', authMiddleware, roleMiddleware(['ADMIN']), uploadMiddleware.single('logo'), updateApp);
 router.delete('/:id', authMiddleware, roleMiddleware(['ADMIN']), deleteApp);
 router.patch('/:id/approve', authMiddleware, roleMiddleware(['ADMIN']), approveApp);
 router.patch('/tutorials/:tutorialId/approve', authMiddleware, roleMiddleware(['ADMIN']), approveTutorial);

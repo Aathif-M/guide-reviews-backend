@@ -51,7 +51,24 @@ const sendAdminNotification = async (subject, text) => {
             to: adminEmails.join(', '), // Send to all admins
             subject: `[Admin Alert] ${subject}`,
             text: text,
-            html: `<p>${text.replace(/\n/g, '<br>')}</p>`,
+            html: `
+<!DOCTYPE html>
+<html>
+<body style="margin:0;padding:0;background:#0f172a;font-family:Arial,sans-serif;">
+  <div style="max-width:600px;margin:30px auto;background:#1e293b;border-radius:12px;overflow:hidden;border:1px solid #334155;">
+    <div style="background:linear-gradient(135deg,#3b82f6,#8b5cf6);padding:24px 32px;">
+      <h1 style="margin:0;color:#fff;font-size:22px;letter-spacing:0.5px;">G.U.I.D.E. Admin Alert</h1>
+      <p style="margin:4px 0 0;color:rgba(255,255,255,0.8);font-size:14px;">${subject}</p>
+    </div>
+    <div style="padding:28px 32px;">
+      <p style="color:#cbd5e1;font-size:15px;line-height:1.7;white-space:pre-line;">${text}</p>
+    </div>
+    <div style="padding:16px 32px 28px;">
+      <p style="color:#64748b;font-size:13px;margin:0;">This is an automated notification from G.U.I.D.E. Please log in to the Admin Dashboard to review and take action.</p>
+    </div>
+  </div>
+</body>
+</html>`,
         };
 
         // Send mail

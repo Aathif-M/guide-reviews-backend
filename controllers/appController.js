@@ -242,8 +242,19 @@ const submitApp = async (req, res) => {
 const updateApp = async (req, res) => {
     try {
         const { id } = req.params;
-        const { title, description, logoUrl, playstoreLink, appstoreLink, categoryId } = req.body;
+        const { title, description, playstoreLink, appstoreLink, categoryId } = req.body;
+
+        // Handle logo: use newly uploaded file if provided, otherwise keep the existing logoUrl from the body
+        let logoUrl = req.body.logoUrl;
+        if (req.file) {
+            logoUrl = `/uploads/${req.file.filename}`;
+        }
+
+        // Tutorials may come as a JSON-encoded string (FormData) or as an already-parsed array
         let tutorials = req.body.tutorials || [];
+        if (typeof tutorials === 'string') {
+            try { tutorials = JSON.parse(tutorials); } catch (e) { tutorials = []; }
+        }
 
         const keepIds = tutorials.filter(t => t.id).map(t => t.id);
 

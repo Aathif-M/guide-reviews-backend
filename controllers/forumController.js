@@ -10,7 +10,10 @@ const getAppForums = async (req, res) => {
                 user: { select: { firstName: true, lastName: true } },
                 _count: { select: { answers: true } },
                 answers: {
-                    include: { user: { select: { firstName: true, lastName: true, role: true } } },
+                    include: {
+                        user: { select: { firstName: true, lastName: true, role: true } },
+                        votes: { select: { userId: true, voteType: true } }
+                    },
                     orderBy: [
                         { isAccepted: 'desc' },
                         { createdAt: 'asc' }
@@ -171,8 +174,22 @@ const voteForumAnswer = async (req, res) => {
 
         if (existingVote) {
             if (existingVote.voteType === vote) {
-                return res.status(400).json({ error: 'You have already voted this way' });
+                // User clicked the same vote type again -> Remove the vote
+                await prisma.$transaction([
+                    prisma.forumAnswerVote.delete({
+                        where: { id: existingVote.id }
+                    }),
+                    prisma.forumAnswer.update({
+                        where: { id },
+                        data: {
+                            upvotes: vote === 1 ? { decrement: 1 } : undefined,
+                            downvotes: vote === -1 ? { decrement: 1 } : undefined
+                        }
+                    })
+                ]);
+                return res.json({ message: 'Vote removed successfully' });
             } else {
+                // User changed their vote
                 await prisma.$transaction([
                     prisma.forumAnswerVote.update({
                         where: { id: existingVote.id },
