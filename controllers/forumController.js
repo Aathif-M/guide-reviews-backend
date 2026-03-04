@@ -8,7 +8,14 @@ const getAppForums = async (req, res) => {
             where: { appId: id },
             include: {
                 user: { select: { firstName: true, lastName: true } },
-                _count: { select: { answers: true } }
+                _count: { select: { answers: true } },
+                answers: {
+                    include: { user: { select: { firstName: true, lastName: true, role: true } } },
+                    orderBy: [
+                        { isAccepted: 'desc' },
+                        { createdAt: 'asc' }
+                    ]
+                }
             },
             orderBy: { createdAt: 'desc' }
         });
@@ -114,6 +121,34 @@ const acceptForumAnswer = async (req, res) => {
     }
 };
 
+// Delete a forum post (Admin only)
+const deleteForumPost = async (req, res) => {
+    try {
+        const { id } = req.params;
+        if (req.user.role !== 'ADMIN') {
+            return res.status(403).json({ error: 'Permission denied' });
+        }
+        await prisma.forumPost.delete({ where: { id } });
+        res.json({ message: 'Forum post deleted' });
+    } catch (err) {
+        res.status(500).json({ error: 'Server error deleting forum post' });
+    }
+};
+
+// Delete a forum answer (Admin only)
+const deleteForumAnswer = async (req, res) => {
+    try {
+        const { id } = req.params;
+        if (req.user.role !== 'ADMIN') {
+            return res.status(403).json({ error: 'Permission denied' });
+        }
+        await prisma.forumAnswer.delete({ where: { id } });
+        res.json({ message: 'Forum answer deleted' });
+    } catch (err) {
+        res.status(500).json({ error: 'Server error deleting forum answer' });
+    }
+};
+
 module.exports = {
-    getAppForums, getForumPost, createForumPost, addForumAnswer, acceptForumAnswer
+    getAppForums, getForumPost, createForumPost, addForumAnswer, acceptForumAnswer, deleteForumPost, deleteForumAnswer
 };
