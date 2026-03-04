@@ -149,6 +149,70 @@ const deleteForumAnswer = async (req, res) => {
     }
 };
 
+// Upvote or Downvote an answer
+const voteForumAnswer = async (req, res) => {
+    try {
+        const { id } = req.params; // answerId
+        const { vote } = req.body; // 1 for upvote, -1 for downvote
+
+        if (![1, -1].includes(vote)) return res.status(400).json({ error: 'Invalid vote type' });
+
+        const answer = await prisma.forumAnswer.findUnique({ where: { id } });
+        if (!answer) return res.status(404).json({ error: 'Answer not found' });
+
+        const existingVote = await prisma.forumAnswerVote.findUnique({
+            where: {
+                answerId_userId: {
+                    answerId: id,
+                    userId: req.user.id
+                }
+            }
+        });
+
+        if (existingVote) {
+            if (existingVote.voteType === vote) {
+                return res.status(400).json({ error: 'You have already voted this way' });
+            } else {
+                await prisma.$transaction([
+                    prisma.forumAnswerVote.update({
+                        where: { id: existingVote.id },
+                        data: { voteType: vote }
+                    }),
+                    prisma.forumAnswer.update({
+                        where: { id },
+                        data: {
+                            upvotes: vote === 1 ? { increment: 1 } : { decrement: 1 },
+                            downvotes: vote === -1 ? { increment: 1 } : { decrement: 1 }
+                        }
+                    })
+                ]);
+                return res.json({ message: 'Vote changed successfully' });
+            }
+        }
+
+        await prisma.$transaction([
+            prisma.forumAnswerVote.create({
+                data: {
+                    answerId: id,
+                    userId: req.user.id,
+                    voteType: vote
+                }
+            }),
+            prisma.forumAnswer.update({
+                where: { id },
+                data: {
+                    upvotes: vote === 1 ? { increment: 1 } : undefined,
+                    downvotes: vote === -1 ? { increment: 1 } : undefined
+                }
+            })
+        ]);
+
+        res.json({ message: 'Vote added successfully' });
+    } catch (err) {
+        res.status(500).json({ error: 'Server error handling vote' });
+    }
+};
+
 module.exports = {
-    getAppForums, getForumPost, createForumPost, addForumAnswer, acceptForumAnswer, deleteForumPost, deleteForumAnswer
+    getAppForums, getForumPost, createForumPost, addForumAnswer, acceptForumAnswer, deleteForumPost, deleteForumAnswer, voteForumAnswer
 };

@@ -21,8 +21,8 @@ model User {
   approvedApps       App[]         @relation("ApprovedApps")
   submittedApps      App[]         @relation("SubmittedApps")
   submittedTutorials AppTutorial[]
-  feedback           Feedback[]
   forumAnswers       ForumAnswer[]
+  forumAnswerVotes   ForumAnswerVote[]
   forumPosts         ForumPost[]
   reviews            Review[]
 }
@@ -31,6 +31,7 @@ model Category {
   id          String             @id @default(uuid())
   name        String             @unique
   description String?
+  iconName    String?
   createdAt   DateTime           @default(now())
   updatedAt   DateTime           @updatedAt
   apps        App[]
@@ -106,15 +107,6 @@ model ReviewQuestionAnswer {
   review       Review           @relation(fields: [reviewId], references: [id], onDelete: Cascade)
 }
 
-model Feedback {
-  id             String         @id @default(uuid())
-  userId         String
-  content        String
-  approvalStatus ApprovalStatus @default(PENDING)
-  createdAt      DateTime       @default(now())
-  user           User           @relation(fields: [userId], references: [id])
-}
-
 model ForumPost {
   id        String        @id @default(uuid())
   appId     String
@@ -133,11 +125,26 @@ model ForumAnswer {
   postId     String
   userId     String
   content    String
-  isAccepted Boolean   @default(false)
-  createdAt  DateTime  @default(now())
-  updatedAt  DateTime  @updatedAt
-  post       ForumPost @relation(fields: [postId], references: [id], onDelete: Cascade)
-  user       User      @relation(fields: [userId], references: [id])
+  isAccepted Boolean           @default(false)
+  upvotes    Int               @default(0)
+  downvotes  Int               @default(0)
+  createdAt  DateTime          @default(now())
+  updatedAt  DateTime          @updatedAt
+  post       ForumPost         @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user       User              @relation(fields: [userId], references: [id])
+  votes      ForumAnswerVote[]
+}
+
+model ForumAnswerVote {
+  id         String      @id @default(uuid())
+  answerId   String
+  userId     String
+  voteType   Int         // 1 for upvote, -1 for downvote
+  createdAt  DateTime    @default(now())
+  answer     ForumAnswer @relation(fields: [answerId], references: [id], onDelete: Cascade)
+  user       User        @relation(fields: [userId], references: [id])
+
+  @@unique([answerId, userId])
 }
 
 enum Role {

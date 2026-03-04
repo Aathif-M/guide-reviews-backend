@@ -15,9 +15,9 @@ const getCategories = async (req, res) => {
 // Add new category (Admin)
 const createCategory = async (req, res) => {
     try {
-        const { name, description } = req.body;
+        const { name, description, iconName } = req.body;
         const newCategory = await prisma.category.create({
-            data: { name, description }
+            data: { name, description, iconName }
         });
         res.status(201).json(newCategory);
     } catch (err) {
@@ -30,10 +30,10 @@ const createCategory = async (req, res) => {
 const updateCategory = async (req, res) => {
     try {
         const { id } = req.params;
-        const { name, description } = req.body;
+        const { name, description, iconName } = req.body;
         const category = await prisma.category.update({
             where: { id },
-            data: { name, description }
+            data: { name, description, iconName }
         });
         res.json(category);
     } catch (err) {

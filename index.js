@@ -16,7 +16,6 @@ const userRoutes = require('./routes/userRoutes');
 const categoryRoutes = require('./routes/categoryRoutes');
 const appRoutes = require('./routes/appRoutes');
 const reviewRoutes = require('./routes/reviewRoutes');
-const feedbackRoutes = require('./routes/feedbackRoutes');
 const forumRoutes = require('./routes/forumRoutes');
 
 app.use('/api/v1/auth', authRoutes);
@@ -24,7 +23,6 @@ app.use('/api/v1/users', userRoutes);
 app.use('/api/v1/categories', categoryRoutes);
 app.use('/api/v1/apps', appRoutes);
 app.use('/api/v1', reviewRoutes); // Note: handles /apps/:id/reviews and /reviews/:id
-app.use('/api/v1/feedback', feedbackRoutes);
 app.use('/api/v1', forumRoutes); // Note: handles /apps/:id/forums and /forums/*
 
 const { startCleanupJobs } = require('./utils/cronJobs');

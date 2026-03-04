@@ -86,7 +86,6 @@ const getUserActivities = async (req, res) => {
             include: {
                 submittedApps: true,
                 reviews: true,
-                feedback: true,
                 forumPosts: true,
                 forumAnswers: true,
             }
