@@ -66,6 +66,7 @@ const getAllUsers = async (req, res) => {
                 lastName: true,
                 role: true,
                 isSuspended: true,
+                suspendedAt: true,
                 createdAt: true,
             }
         });
@@ -114,7 +115,10 @@ const toggleUserSuspension = async (req, res) => {
 
         const updatedUser = await prisma.user.update({
             where: { id },
-            data: { isSuspended },
+            data: {
+                isSuspended,
+                suspendedAt: isSuspended ? new Date() : null
+            },
         });
 
         res.json({ message: `User successfully ${isSuspended ? 'suspended' : 'unsuspended'}`, user: updatedUser });

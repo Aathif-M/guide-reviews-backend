@@ -27,6 +27,8 @@ app.use('/api/v1', reviewRoutes); // Note: handles /apps/:id/reviews and /review
 app.use('/api/v1/feedback', feedbackRoutes);
 app.use('/api/v1', forumRoutes); // Note: handles /apps/:id/forums and /forums/*
 
+const { startCleanupJobs } = require('./utils/cronJobs');
+
 const PORT = process.env.PORT || 5000;
 
 app.get('/', (req, res) => {
@@ -35,4 +37,5 @@ app.get('/', (req, res) => {
 
 app.listen(PORT, () => {
     console.log(`Server is running on port ${PORT}`);
+    startCleanupJobs();
 });

@@ -15,6 +15,7 @@ model User {
   firstName          String
   lastName           String
   isSuspended        Boolean       @default(false)
+  suspendedAt        DateTime?
   createdAt          DateTime      @default(now())
   updatedAt          DateTime      @updatedAt
   approvedApps       App[]         @relation("ApprovedApps")
