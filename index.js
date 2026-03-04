@@ -17,6 +17,7 @@ const categoryRoutes = require('./routes/categoryRoutes');
 const appRoutes = require('./routes/appRoutes');
 const reviewRoutes = require('./routes/reviewRoutes');
 const forumRoutes = require('./routes/forumRoutes');
+const contactRoutes = require('./routes/contactRoutes');
 
 app.use('/api/v1/auth', authRoutes);
 app.use('/api/v1/users', userRoutes);
@@ -24,6 +25,7 @@ app.use('/api/v1/categories', categoryRoutes);
 app.use('/api/v1/apps', appRoutes);
 app.use('/api/v1', reviewRoutes); // Note: handles /apps/:id/reviews and /reviews/:id
 app.use('/api/v1', forumRoutes); // Note: handles /apps/:id/forums and /forums/*
+app.use('/api/v1', contactRoutes); // Note: handles contact form
 
 const { startCleanupJobs } = require('./utils/cronJobs');
 

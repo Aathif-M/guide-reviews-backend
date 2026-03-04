@@ -51,29 +51,55 @@ const sendAdminNotification = async (subject, text) => {
             to: adminEmails.join(', '), // Send to all admins
             subject: `[Admin Alert] ${subject}`,
             text: text,
-            html: `
-<!DOCTYPE html>
-<html>
-<body style="margin:0;padding:0;background:#0f172a;font-family:Arial,sans-serif;">
-  <div style="max-width:600px;margin:30px auto;background:#1e293b;border-radius:12px;overflow:hidden;border:1px solid #334155;">
-    <div style="background:linear-gradient(135deg,#3b82f6,#8b5cf6);padding:24px 32px;">
-      <h1 style="margin:0;color:#fff;font-size:22px;letter-spacing:0.5px;">G.U.I.D.E. Admin Alert</h1>
-      <p style="margin:4px 0 0;color:rgba(255,255,255,0.8);font-size:14px;">${subject}</p>
-    </div>
-    <div style="padding:28px 32px;">
-      <p style="color:#cbd5e1;font-size:15px;line-height:1.7;white-space:pre-line;">${text}</p>
-    </div>
-    <div style="padding:16px 32px 28px;">
-      <p style="color:#64748b;font-size:13px;margin:0;">This is an automated notification from G.U.I.D.E. Please log in to the Admin Dashboard to review and take action.</p>
-    </div>
-  </div>
-</body>
-</html>`,
+            html: `<!DOCTYPE html>
+                    <html>
+                    <head>
+                    <style>
+                        body { margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f8fafc; color: #334155; line-height: 1.6; }
+                        .container { max-width: 600px; margin: 40px auto; background-color: #ffffff; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05); border: 1px solid #e2e8f0; }
+                        .header { background: linear-gradient(135deg, #0ea5e9, #3b82f6); padding: 30px 40px; text-align: left; }
+                        .header h1 { margin: 0; color: #ffffff; font-size: 24px; font-weight: 700; letter-spacing: -0.5px; }
+                        .header p { margin: 8px 0 0; color: rgba(255, 255, 255, 0.9); font-size: 15px; font-weight: 500; }
+                        .content { padding: 40px; }
+                        .message-box { background-color: #f1f5f9; border-left: 4px solid #3b82f6; padding: 20px; border-radius: 0 8px 8px 0; margin-bottom: 30px; }
+                        .message-text { color: #1e293b; font-size: 16px; white-space: pre-line; margin: 0; }
+                        .footer { background-color: #f8fafc; padding: 24px 40px; text-align: center; border-top: 1px solid #e2e8f0; }
+                        .footer p { color: #64748b; font-size: 14px; margin: 0; }
+                        .btn { display: inline-block; background-color: #3b82f6; color: #ffffff; text-decoration: none; padding: 12px 24px; border-radius: 8px; font-weight: 600; margin-top: 10px; }
+                    </style>
+                    </head>
+                    <body>
+                    <div class="container">
+                        <div class="header">
+                        <h1>G.U.I.D.E. Admin Notification</h1>
+                        <p>${subject}</p>
+                        </div>
+                        
+                        <div class="content">
+                        <div class="message-box">
+                            <p class="message-text">${text.replace(/\n/g, '<br>')}</p>
+                        </div>
+                        
+                        <p style="color: #475569; font-size: 15px; margin-top: 30px;">
+                            Please log in to the admin dashboard to review this item and take any necessary actions.
+                        </p>
+                        
+                        <div style="text-align: center; margin-top: 25px;">
+                            <a href="http://localhost:5173/admin" class="btn">View Admin Dashboard</a>
+                        </div>
+                        </div>
+                        
+                        <div class="footer">
+                        <p>This is an automated message from the Generational Usability Index for Digital Engagement (G.U.I.D.E.) platform.</p>
+                        </div>
+                    </div>
+                    </body>
+                    </html>`,
         };
 
         // Send mail
         const info = await transporter.sendMail(mailOptions);
-        console.log(`[MailService] Notification sent to admins: ${info.messageId}`);
+        console.log(`[MailService] Notification sent to admins: ${info.messageId} `);
     } catch (error) {
         console.error('[MailService Error] Failed to send email to admins:', error);
     }

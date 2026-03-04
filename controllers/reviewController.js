@@ -47,6 +47,31 @@ const getAppReviews = async (req, res) => {
     }
 };
 
+// Fetch 10 most recent APPROVED reviews from any app (Public - used on the Homepage)
+const getRecentReviews = async (req, res) => {
+    try {
+        const reviews = await prisma.review.findMany({
+            where: {
+                approvalStatus: 'APPROVED'
+            },
+            include: {
+                app: { select: { id: true, title: true, logoUrl: true, category: { select: { iconName: true, name: true } } } },
+                user: { select: { firstName: true, lastName: true } },
+                questionAnswers: {
+                    include: {
+                        question: { select: { question: true } }
+                    }
+                }
+            },
+            orderBy: { createdAt: 'desc' },
+            take: 10
+        });
+        res.json(reviews);
+    } catch (err) {
+        res.status(500).json({ error: 'Server error fetching recent reviews' });
+    }
+};
+
 // Submit a review for an app (Auth required, not Admin)
 const submitReview = async (req, res) => {
     try {
@@ -175,5 +200,5 @@ const deleteReview = async (req, res) => {
 };
 
 module.exports = {
-    getAppReviews, getAllReviews, submitReview, approveReview, updateReview, deleteReview
+    getAppReviews, getRecentReviews, getAllReviews, submitReview, approveReview, updateReview, deleteReview
 };

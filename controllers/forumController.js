@@ -1,4 +1,5 @@
 const prisma = require('../utils/prisma');
+const { sendAdminNotification } = require('../utils/mailService');
 
 // List forum posts for an app
 const getAppForums = async (req, res) => {
@@ -10,6 +11,12 @@ const getAppForums = async (req, res) => {
                 user: { select: { firstName: true, lastName: true } },
                 _count: { select: { answers: true } },
                 answers: {
+                    where: {
+                        OR: [
+                            { approvalStatus: 'APPROVED' },
+                            ...(req.user?.id ? [{ userId: req.user.id }] : [])
+                        ]
+                    },
                     include: {
                         user: { select: { firstName: true, lastName: true, role: true } },
                         votes: { select: { userId: true, voteType: true } }
@@ -22,7 +29,13 @@ const getAppForums = async (req, res) => {
             },
             orderBy: { createdAt: 'desc' }
         });
-        res.json(forums);
+
+        // Filter returned forums if not an admin
+        let result = forums;
+        if (req.user?.role !== 'ADMIN') {
+            result = forums.filter(post => post.approvalStatus === 'APPROVED' || post.userId === req.user?.id);
+        }
+        res.json(result);
     } catch (err) {
         res.status(500).json({ error: 'Server error fetching forums' });
     }
@@ -37,6 +50,12 @@ const getForumPost = async (req, res) => {
             include: {
                 user: { select: { firstName: true, lastName: true } },
                 answers: {
+                    where: {
+                        OR: [
+                            { approvalStatus: 'APPROVED' },
+                            ...(req.user?.id ? [{ userId: req.user.id }] : [])
+                        ]
+                    },
                     include: { user: { select: { firstName: true, lastName: true, role: true } } },
                     orderBy: [
                         { isAccepted: 'desc' },
@@ -46,6 +65,25 @@ const getForumPost = async (req, res) => {
             }
         });
         if (!post) return res.status(404).json({ error: 'Post not found' });
+
+        // Block access to unapproved post for non-admin, non-author
+        if (post.approvalStatus !== 'APPROVED' && req.user?.role !== 'ADMIN' && post.userId !== req.user?.id) {
+            return res.status(403).json({ error: 'Access denied to unapproved post' });
+        }
+
+        // If admin, they might want all answers regardless of approval, so re-fetch answers if admin
+        if (req.user?.role === 'ADMIN') {
+            const allAnswers = await prisma.forumAnswer.findMany({
+                where: { postId: id },
+                include: { user: { select: { firstName: true, lastName: true, role: true } } },
+                orderBy: [
+                    { isAccepted: 'desc' },
+                    { createdAt: 'asc' }
+                ]
+            });
+            post.answers = allAnswers;
+        }
+
         res.json(post);
     } catch (err) {
         res.status(500).json({ error: 'Server error fetching post' });
@@ -57,14 +95,26 @@ const createForumPost = async (req, res) => {
     try {
         const { id } = req.params; // appId
         const { title, content } = req.body;
+        const approvalStatus = req.user.role === 'ADMIN' ? 'APPROVED' : 'PENDING';
         const newPost = await prisma.forumPost.create({
             data: {
                 appId: id,
                 userId: req.user.id,
                 title,
-                content
-            }
+                content,
+                approvalStatus
+            },
+            include: { user: { select: { firstName: true, lastName: true } }, app: { select: { title: true } } }
         });
+
+        // Send email to admins only if pending
+        if (approvalStatus === 'PENDING') {
+            sendAdminNotification(
+                'New Forum Question Needs Approval',
+                `User ${newPost.user.firstName} ${newPost.user.lastName} submitted a new question for the app "${newPost.app.title}".\n\nTitle: ${newPost.title}\nContent: ${newPost.content}`
+            );
+        }
+
         res.status(201).json(newPost);
     } catch (err) {
         res.status(500).json({ error: 'Server error creating post' });
@@ -76,13 +126,25 @@ const addForumAnswer = async (req, res) => {
     try {
         const { id } = req.params; // postId
         const { content } = req.body;
+        const approvalStatus = req.user.role === 'ADMIN' ? 'APPROVED' : 'PENDING';
         const newAnswer = await prisma.forumAnswer.create({
             data: {
                 postId: id,
                 userId: req.user.id,
-                content
-            }
+                content,
+                approvalStatus
+            },
+            include: { user: { select: { firstName: true, lastName: true } }, post: { select: { title: true } } }
         });
+
+        // Send email to admins only if pending
+        if (approvalStatus === 'PENDING') {
+            sendAdminNotification(
+                'New Forum Answer Needs Approval',
+                `User ${newAnswer.user.firstName} ${newAnswer.user.lastName} submitted a new answer on the question "${newAnswer.post.title}".\n\nAnswer: ${newAnswer.content}`
+            );
+        }
+
         res.status(201).json(newAnswer);
     } catch (err) {
         res.status(500).json({ error: 'Server error adding answer' });
@@ -230,6 +292,75 @@ const voteForumAnswer = async (req, res) => {
     }
 };
 
+// Admin endpoints for Moderation
+
+const getPendingForumItems = async (req, res) => {
+    try {
+        const pendingPosts = await prisma.forumPost.findMany({
+            include: {
+                user: { select: { firstName: true, lastName: true } },
+                app: { select: { title: true } }
+            },
+            orderBy: { createdAt: 'desc' }
+        });
+
+        const pendingAnswers = await prisma.forumAnswer.findMany({
+            include: {
+                user: { select: { firstName: true, lastName: true } },
+                post: { select: { title: true } }
+            },
+            orderBy: { createdAt: 'desc' }
+        });
+
+        res.json({ posts: pendingPosts, answers: pendingAnswers });
+    } catch (err) {
+        res.status(500).json({ error: 'Server error fetching pending items' });
+    }
+};
+
+const approveForumPost = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { approvalStatus, status } = req.body; // 'APPROVED' or 'REJECTED'
+        const finalStatus = approvalStatus || status;
+
+        if (!['APPROVED', 'REJECTED'].includes(finalStatus)) {
+            return res.status(400).json({ error: 'Invalid approval status' });
+        }
+
+        const updatedPost = await prisma.forumPost.update({
+            where: { id },
+            data: { approvalStatus: finalStatus }
+        });
+        res.json(updatedPost);
+    } catch (err) {
+        res.status(500).json({ error: 'Server error updating approval status' });
+    }
+};
+
+const approveForumAnswer = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { approvalStatus, status } = req.body;
+        const finalStatus = approvalStatus || status;
+
+        if (!['APPROVED', 'REJECTED'].includes(finalStatus)) {
+            return res.status(400).json({ error: 'Invalid approval status' });
+        }
+
+        const updatedAnswer = await prisma.forumAnswer.update({
+            where: { id },
+            data: { approvalStatus: finalStatus }
+        });
+        res.json(updatedAnswer);
+    } catch (err) {
+        res.status(500).json({ error: 'Server error updating approval status' });
+    }
+};
+
+
 module.exports = {
-    getAppForums, getForumPost, createForumPost, addForumAnswer, acceptForumAnswer, deleteForumPost, deleteForumAnswer, voteForumAnswer
+    getAppForums, getForumPost, createForumPost, addForumAnswer, acceptForumAnswer,
+    deleteForumPost, deleteForumAnswer, voteForumAnswer,
+    getPendingForumItems, approveForumPost, approveForumAnswer
 };

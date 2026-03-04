@@ -108,31 +108,33 @@ model ReviewQuestionAnswer {
 }
 
 model ForumPost {
-  id        String        @id @default(uuid())
-  appId     String
-  userId    String
-  title     String
-  content   String
-  createdAt DateTime      @default(now())
-  updatedAt DateTime      @updatedAt
-  answers   ForumAnswer[]
-  app       App           @relation(fields: [appId], references: [id])
-  user      User          @relation(fields: [userId], references: [id])
+  id             String         @id @default(uuid())
+  appId          String
+  userId         String
+  title          String
+  content        String
+  approvalStatus ApprovalStatus @default(PENDING)
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+  answers        ForumAnswer[]
+  app            App            @relation(fields: [appId], references: [id])
+  user           User           @relation(fields: [userId], references: [id])
 }
 
 model ForumAnswer {
-  id         String    @id @default(uuid())
-  postId     String
-  userId     String
-  content    String
-  isAccepted Boolean           @default(false)
-  upvotes    Int               @default(0)
-  downvotes  Int               @default(0)
-  createdAt  DateTime          @default(now())
-  updatedAt  DateTime          @updatedAt
-  post       ForumPost         @relation(fields: [postId], references: [id], onDelete: Cascade)
-  user       User              @relation(fields: [userId], references: [id])
-  votes      ForumAnswerVote[]
+  id             String            @id @default(uuid())
+  postId         String
+  userId         String
+  content        String
+  isAccepted     Boolean           @default(false)
+  upvotes        Int               @default(0)
+  downvotes      Int               @default(0)
+  approvalStatus ApprovalStatus    @default(PENDING)
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+  post           ForumPost         @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user           User              @relation(fields: [userId], references: [id])
+  votes          ForumAnswerVote[]
 }
 
 model ForumAnswerVote {
