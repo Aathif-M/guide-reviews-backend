@@ -1,4 +1,5 @@
 const prisma = require('../utils/prisma');
+const { sendAdminNotification } = require('../utils/mailService');
 
 /**
  * Fetch all applications.
@@ -202,6 +203,7 @@ const submitApp = async (req, res) => {
             logoUrl = `/uploads/${req.file.filename}`;
         }
 
+        const approvalStatus = req.user.role === 'ADMIN' ? 'APPROVED' : 'PENDING';
         const newApp = await prisma.app.create({
             data: {
                 title,
@@ -211,17 +213,24 @@ const submitApp = async (req, res) => {
                 appstoreLink,
                 categoryId,
                 submitterId: req.user.id,
-                approvalStatus: req.user.role === 'ADMIN' ? 'APPROVED' : 'PENDING',
+                approvalStatus,
                 approverId: req.user.role === 'ADMIN' ? req.user.id : null,
                 tutorials: {
                     create: tutorials.map(t => ({
                         title: t.title,
                         videoUrl: t.url,
-                        approvalStatus: req.user.role === 'ADMIN' ? 'APPROVED' : 'PENDING'
+                        approvalStatus
                     }))
                 }
             }
         });
+
+        if (approvalStatus === 'PENDING') {
+            await sendAdminNotification(
+                'New App Submission Requires Approval',
+                `A new application "${title}" has been submitted and is waiting for admin approval.\n\nDescription:\n${description}\n\nPlease check the Admin Dashboard.`
+            );
+        }
 
         res.status(201).json(newApp);
     } catch (err) {
@@ -302,15 +311,25 @@ const submitTutorial = async (req, res) => {
         const { id } = req.params;
         const { title, url } = req.body;
 
+        const approvalStatus = req.user.role === 'ADMIN' ? 'APPROVED' : 'PENDING';
         const tutorial = await prisma.appTutorial.create({
             data: {
                 title,
                 videoUrl: url,
                 appId: id,
                 submitterId: req.user.id,
-                approvalStatus: req.user.role === 'ADMIN' ? 'APPROVED' : 'PENDING'
+                approvalStatus
             }
         });
+
+        if (approvalStatus === 'PENDING') {
+            const app = await prisma.app.findUnique({ where: { id } });
+            await sendAdminNotification(
+                'New App Tutorial Requires Approval',
+                `A new tutorial "${title}" has been submitted for the app "${app ? app.title : 'Unknown'}" and is waiting for admin approval.\n\nLink: ${url}\n\nPlease check the Admin Dashboard.`
+            );
+        }
+
         res.status(201).json(tutorial);
     } catch (err) {
         res.status(500).json({ error: 'Server error submitting tutorial' });

@@ -1,4 +1,5 @@
 const prisma = require('../utils/prisma');
+const { sendAdminNotification } = require('../utils/mailService');
 
 // List ALL reviews (Admin only)
 const getAllReviews = async (req, res) => {
@@ -85,6 +86,12 @@ const submitReview = async (req, res) => {
                 }
             }
         });
+
+        const app = await prisma.app.findUnique({ where: { id } });
+        await sendAdminNotification(
+            'New App Review Requires Approval',
+            `A new review has been submitted for the app "${app ? app.title : 'Unknown'}" with a rating of ${rating}/5.\n\nReview Content:\n${content}\n\nPlease check the Admin Dashboard.`
+        );
 
         res.status(201).json(newReview);
     } catch (err) {
