@@ -11,6 +11,11 @@ const getMe = async (req, res) => {
             where: { id: req.user.id },
             include: {
                 submittedApps: true,
+                submittedTutorials: {
+                    include: {
+                        app: { select: { title: true } }
+                    }
+                },
                 reviews: {
                     include: {
                         app: { select: { title: true } }

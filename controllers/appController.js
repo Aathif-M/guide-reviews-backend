@@ -126,12 +126,7 @@ const getAppById = async (req, res) => {
 
         // In memory tutorial filtering
         if (app.tutorials) {
-            app.tutorials = app.tutorials.filter(t => {
-                if (t.approvalStatus === 'APPROVED') return true;
-                if (req.user && req.user.role === 'ADMIN') return true;
-                if (req.user && t.submitterId === req.user.id) return true;
-                return false;
-            });
+            app.tutorials = app.tutorials.filter(t => t.approvalStatus === 'APPROVED');
         }
 
         // Calculate comprehensive aggregated rating strictly for APPROVED reviews
