@@ -1,5 +1,5 @@
 const prisma = require('../utils/prisma');
-const { sendAdminNotification } = require('../utils/mailService');
+const { sendAdminNotification, sendUserNotification } = require('../utils/mailService');
 
 /**
  * Fetch all applications.
@@ -226,7 +226,7 @@ const submitApp = async (req, res) => {
         });
 
         if (approvalStatus === 'PENDING') {
-            await sendAdminNotification(
+            sendAdminNotification(
                 'New App Submission Requires Approval',
                 `A new application "${title}" has been submitted and is waiting for admin approval.\n\nDescription:\n${description}\n\nPlease check the Admin Dashboard.`
             );
@@ -335,7 +335,7 @@ const submitTutorial = async (req, res) => {
 
         if (approvalStatus === 'PENDING') {
             const app = await prisma.app.findUnique({ where: { id } });
-            await sendAdminNotification(
+            sendAdminNotification(
                 'New App Tutorial Requires Approval',
                 `A new tutorial "${title}" has been submitted for the app "${app ? app.title : 'Unknown'}" and is waiting for admin approval.\n\nLink: ${url}\n\nPlease check the Admin Dashboard.`
             );
@@ -354,8 +354,18 @@ const approveTutorial = async (req, res) => {
 
         const tutorial = await prisma.appTutorial.update({
             where: { id: tutorialId },
-            data: { approvalStatus: status }
+            data: { approvalStatus: status },
+            include: { app: { select: { title: true } }, submitter: { select: { email: true, firstName: true } } }
         });
+
+        if (status === 'APPROVED' && tutorial.submitter?.email) {
+            sendUserNotification(
+                tutorial.submitter.email,
+                `Your Tutorial for ${tutorial.app?.title} has been Approved!`,
+                `Hi ${tutorial.submitter.firstName || 'there'},\n\nGreat news! Your video tutorial "${tutorial.title}" for the app "${tutorial.app?.title}" has been reviewed and approved by our moderation team.\n\nIt is now live on the G.U.I.D.E. platform and helping our community.`
+            );
+        }
+
         res.json(tutorial);
     } catch (err) {
         res.status(500).json({ error: 'Server error updating tutorial status' });
@@ -398,8 +408,17 @@ const approveApp = async (req, res) => {
             data: {
                 approvalStatus: status,
                 approverId: req.user.id
-            }
+            },
+            include: { submitter: { select: { email: true, firstName: true } } }
         });
+
+        if (status === 'APPROVED' && app.submitter?.email) {
+            sendUserNotification(
+                app.submitter.email,
+                `Your App Submission "${app.title}" has been Approved!`,
+                `Hi ${app.submitter.firstName || 'there'},\n\nGreat news! The application you submitted, "${app.title}", has successfully passed our heuristic review process and is now live on the G.U.I.D.E. platform.\n\nThank you for contributing to an accessible digital world for everyone.`
+            );
+        }
 
         res.json(app);
     } catch (err) {

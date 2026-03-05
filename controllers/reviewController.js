@@ -1,5 +1,5 @@
 const prisma = require('../utils/prisma');
-const { sendAdminNotification } = require('../utils/mailService');
+const { sendAdminNotification, sendUserNotification } = require('../utils/mailService');
 
 // List ALL reviews (Admin only)
 const getAllReviews = async (req, res) => {
@@ -113,7 +113,7 @@ const submitReview = async (req, res) => {
         });
 
         const app = await prisma.app.findUnique({ where: { id } });
-        await sendAdminNotification(
+        sendAdminNotification(
             'New App Review Requires Approval',
             `A new review has been submitted for the app "${app ? app.title : 'Unknown'}" with a rating of ${rating}/5.\n\nReview Content:\n${content}\n\nPlease check the Admin Dashboard.`
         );
@@ -136,8 +136,17 @@ const approveReview = async (req, res) => {
 
         const review = await prisma.review.update({
             where: { id },
-            data: { approvalStatus: status }
+            data: { approvalStatus: status },
+            include: { app: { select: { title: true } }, user: { select: { email: true, firstName: true } } }
         });
+
+        if (status === 'APPROVED' && review.user?.email) {
+            sendUserNotification(
+                review.user.email,
+                `Your Review for ${review.app?.title} has been Approved!`,
+                `Hi ${review.user.firstName || 'there'},\n\nGreat news! The review you submitted for "${review.app?.title}" has been read and approved by our moderation team.\n\nYour insight is incredibly valuable and helps other seniors make informed decisions. Thank you for contributing to the G.U.I.D.E. platform!`
+            );
+        }
 
         res.json(review);
     } catch (err) {

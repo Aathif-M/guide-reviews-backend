@@ -1,5 +1,5 @@
 const prisma = require('../utils/prisma');
-const { sendAdminNotification } = require('../utils/mailService');
+const { sendAdminNotification, sendUserNotification } = require('../utils/mailService');
 
 // List forum posts for an app
 const getAppForums = async (req, res) => {
@@ -330,8 +330,18 @@ const approveForumPost = async (req, res) => {
 
         const updatedPost = await prisma.forumPost.update({
             where: { id },
-            data: { approvalStatus: finalStatus }
+            data: { approvalStatus: finalStatus },
+            include: { user: { select: { email: true, firstName: true } }, app: { select: { title: true } } }
         });
+
+        if (finalStatus === 'APPROVED' && updatedPost.user?.email) {
+            sendUserNotification(
+                updatedPost.user.email,
+                `Your Forum Question for ${updatedPost.app?.title} has been Approved!`,
+                `Hi ${updatedPost.user.firstName || 'there'},\n\nGreat news! The question you posted to the forum for "${updatedPost.app?.title}" has been reviewed and approved by our moderation team.\n\nIt is now live on the G.U.I.D.E. platform. Check back soon for answers from the community!`
+            );
+        }
+
         res.json(updatedPost);
     } catch (err) {
         res.status(500).json({ error: 'Server error updating approval status' });
@@ -350,8 +360,18 @@ const approveForumAnswer = async (req, res) => {
 
         const updatedAnswer = await prisma.forumAnswer.update({
             where: { id },
-            data: { approvalStatus: finalStatus }
+            data: { approvalStatus: finalStatus },
+            include: { user: { select: { email: true, firstName: true } }, post: { select: { title: true } } }
         });
+
+        if (finalStatus === 'APPROVED' && updatedAnswer.user?.email) {
+            sendUserNotification(
+                updatedAnswer.user.email,
+                `Your Forum Answer has been Approved!`,
+                `Hi ${updatedAnswer.user.firstName || 'there'},\n\nGreat news! Your answer to the question "${updatedAnswer.post?.title}" has been reviewed and approved by our moderation team.\n\nThank you for helping others and contributing to the G.U.I.D.E. community!`
+            );
+        }
+
         res.json(updatedAnswer);
     } catch (err) {
         res.status(500).json({ error: 'Server error updating approval status' });
